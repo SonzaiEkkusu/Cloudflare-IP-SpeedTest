@@ -1,3 +1,4 @@
+
 package main
 
 import (
@@ -23,34 +24,34 @@ import (
 )
 
 const (
-	requestURL  = "speed.cloudflare.com/cdn-cgi/trace" // 请求trace URL
-	timeout     = 1 * time.Second                      // 超时时间
-	maxDuration = 2 * time.Second                      // 最大持续时间
+	requestURL  = "speed.cloudflare.com/cdn-cgi/trace" // Trace URL for requests
+	timeout     = 1 * time.Second                      // Timeout duration
+	maxDuration = 2 * time.Second                      // Maximum duration
 )
 
 var (
-	File         = flag.String("file", "ip.txt", "IP地址文件名称")                                   // IP地址文件名称
-	outFile      = flag.String("outfile", "ip.csv", "输出文件名称")                                  // 输出文件名称
-	defaultPort  = flag.Int("port", 443, "端口")                                                 // 端口
-	maxThreads   = flag.Int("max", 100, "并发请求最大协程数")                                           // 最大协程数
-	speedTest    = flag.Int("speedtest", 5, "下载测速协程数量,设为0禁用测速")                                // 下载测速协程数量
-	speedTestURL = flag.String("url", "speed.cloudflare.com/__down?bytes=500000000", "测速文件地址") // 测速文件地址
-	enableTLS    = flag.Bool("tls", true, "是否启用TLS")                                           // TLS是否启用
+	File         = flag.String("file", "ip.txt", "IP address file name")                                     // IP address file name
+	outFile      = flag.String("outfile", "ip.csv", "Output file name")                                     // Output file name
+	defaultPort  = flag.Int("port", 443, "Port")                                                            // Port
+	maxThreads   = flag.Int("max", 100, "Maximum concurrent goroutines for requests")                        // Maximum goroutines
+	speedTest    = flag.Int("speedtest", 5, "Number of download speed test goroutines, set to 0 to disable") // Number of download speed test goroutines
+	speedTestURL = flag.String("url", "speed.cloudflare.com/__down?bytes=500000000", "Speed test file URL")   // Speed test file URL
+	enableTLS    = flag.Bool("tls", true, "Enable TLS")                                                     // Enable TLS
 )
 
 type result struct {
-	ip          string        // IP地址
-	port        int           // 端口
-	dataCenter  string        // 数据中心
-	region      string        // 地区
-	city        string        // 城市
-	latency     string        // 延迟
-	tcpDuration time.Duration // TCP请求延迟
+	ip          string        // IP address
+	port        int           // Port
+	dataCenter  string        // Data center
+	region      string        // Region
+	city        string        // City
+	latency     string        // Latency
+	tcpDuration time.Duration // TCP request latency
 }
 
 type speedtestresult struct {
 	result
-	downloadSpeed float64 // 下载速度
+	downloadSpeed float64 // Download speed
 }
 
 type location struct {
@@ -62,15 +63,15 @@ type location struct {
 	City   string  `json:"city"`
 }
 
-// 尝试提升文件描述符的上限
+// Attempt to increase the file descriptor limit
 func increaseMaxOpenFiles() {
-	fmt.Println("正在尝试提升文件描述符的上限...")
+	fmt.Println("Attempting to increase file descriptor limit...")
 	cmd := exec.Command("bash", "-c", "ulimit -n 10000")
 	_, err := cmd.CombinedOutput()
 	if err != nil {
-		fmt.Printf("提升文件描述符上限时出现错误: %v\n", err)
+		fmt.Printf("Error increasing file descriptor limit: %v\n", err)
 	} else {
-		fmt.Printf("文件描述符上限已提升!\n")
+		fmt.Printf("File descriptor limit increased!\n")
 	}
 }
 
@@ -85,10 +86,10 @@ func main() {
 
 	var locations []location
 	if _, err := os.Stat("locations.json"); os.IsNotExist(err) {
-		fmt.Println("本地 locations.json 不存在\n正在从 https://speed.cloudflare.com/locations 下载 locations.json")
+		fmt.Println("Local locations.json does not exist\nDownloading locations.json from https://speed.cloudflare.com/locations")
 		resp, err := http.Get("https://speed.cloudflare.com/locations")
 		if err != nil {
-			fmt.Printf("无法从URL中获取JSON: %v\n", err)
+			fmt.Printf("Unable to fetch JSON from URL: %v\n", err)
 			return
 		}
 
@@ -96,45 +97,45 @@ func main() {
 
 		body, err := ioutil.ReadAll(resp.Body)
 		if err != nil {
-			fmt.Printf("无法读取响应体: %v\n", err)
+			fmt.Printf("Unable to read response body: %v\n", err)
 			return
 		}
 
 		err = json.Unmarshal(body, &locations)
 		if err != nil {
-			fmt.Printf("无法解析JSON: %v\n", err)
+			fmt.Printf("Unable to parse JSON: %v\n", err)
 			return
 		}
 		file, err := os.Create("locations.json")
 		if err != nil {
-			fmt.Printf("无法创建文件: %v\n", err)
+			fmt.Printf("Unable to create file: %v\n", err)
 			return
 		}
 		defer file.Close()
 
 		_, err = file.Write(body)
 		if err != nil {
-			fmt.Printf("无法写入文件: %v\n", err)
+			fmt.Printf("Unable to write to file: %v\n", err)
 			return
 		}
 	} else {
-		fmt.Println("本地 locations.json 已存在,无需重新下载")
+		fmt.Println("Local locations.json already exists, no need to redownload")
 		file, err := os.Open("locations.json")
 		if err != nil {
-			fmt.Printf("无法打开文件: %v\n", err)
+			fmt.Printf("Unable to open file: %v\n", err)
 			return
 		}
 		defer file.Close()
 
 		body, err := ioutil.ReadAll(file)
 		if err != nil {
-			fmt.Printf("无法读取文件: %v\n", err)
+			fmt.Printf("Unable to read file: %v\n", err)
 			return
 		}
 
 		err = json.Unmarshal(body, &locations)
 		if err != nil {
-			fmt.Printf("无法解析JSON: %v\n", err)
+			fmt.Printf("Unable to parse JSON: %v\n", err)
 			return
 		}
 	}
@@ -146,7 +147,7 @@ func main() {
 
 	ips, err := readIPs(*File)
 	if err != nil {
-		fmt.Printf("无法从文件中读取 IP: %v\n", err)
+		fmt.Printf("Unable to read IPs from file: %v\n", err)
 		return
 	}
 
@@ -168,9 +169,9 @@ func main() {
 				wg.Done()
 				count++
 				percentage := float64(count) / float64(total) * 100
-				fmt.Printf("已完成: %d 总数: %d 已完成: %.2f%%\r", count, total, percentage)
+				fmt.Printf("Completed: %d Total: %d Percentage: %.2f%%\r", count, total, percentage)
 				if count == total {
-					fmt.Printf("已完成: %d 总数: %d 已完成: %.2f%%\n", count, total, percentage)
+					fmt.Printf("Completed: %d Total: %d Percentage: %.2f%%\n", count, total, percentage)
 				}
 			}()
 
@@ -207,7 +208,7 @@ func main() {
 
 			req, _ := http.NewRequest("GET", requestURL, nil)
 
-			// 添加用户代理
+			// Add user agent
 			req.Header.Set("User-Agent", "Mozilla/5.0")
 			req.Close = true
 			resp, err := client.Do(req)
@@ -221,9 +222,9 @@ func main() {
 			}
 
 			buf := &bytes.Buffer{}
-			// 创建一个读取操作的超时
+			// Create a timeout for read operation
 			timeout := time.After(maxDuration)
-			// 使用一个 goroutine 来读取响应体
+			// Use a goroutine to read the response body
 			done := make(chan bool)
 			go func() {
 				_, err := io.Copy(buf, resp.Body)
@@ -232,12 +233,13 @@ func main() {
 					return
 				}
 			}()
-			// 等待读取操作完成或者超时
+
+			// Wait for the read operation to complete or timeout
 			select {
 			case <-done:
-				// 读取操作完成
+				// Read operation completed
 			case <-timeout:
-				// 读取操作超时
+				// Read operation timed out
 				return
 			}
 
@@ -251,10 +253,10 @@ func main() {
 					dataCenter := matches[1]
 					loc, ok := locationMap[dataCenter]
 					if ok {
-						fmt.Printf("发现有效IP %s 位置信息 %s 延迟 %d 毫秒\n", ip, loc.City, tcpDuration.Milliseconds())
+						fmt.Printf("Found valid IP %s at location %s with latency %d milliseconds\n", ip, loc.City, tcpDuration.Milliseconds())
 						resultChan <- result{ip, *defaultPort, dataCenter, loc.Region, loc.City, fmt.Sprintf("%d ms", tcpDuration.Milliseconds()), tcpDuration}
 					} else {
-						fmt.Printf("发现有效IP %s 位置信息未知 延迟 %d 毫秒\n", ip, tcpDuration.Milliseconds())
+						fmt.Printf("Found valid IP %s at unknown location with latency %d milliseconds\n", ip, tcpDuration.Milliseconds())
 						resultChan <- result{ip, *defaultPort, dataCenter, "", "", fmt.Sprintf("%d ms", tcpDuration.Milliseconds()), tcpDuration}
 					}
 				}
@@ -266,14 +268,14 @@ func main() {
 	close(resultChan)
 
 	if len(resultChan) == 0 {
-		// 清除输出内容
+		// Clear output
 		fmt.Print("\033[2J")
-		fmt.Println("没有发现有效的IP")
+		fmt.Println("No valid IP found")
 		return
 	}
 	var results []speedtestresult
 	if *speedTest > 0 {
-		fmt.Printf("开始测速\n")
+		fmt.Printf("Starting speed test\n")
 		var wg2 sync.WaitGroup
 		wg2.Add(*speedTest)
 		count = 0
@@ -287,15 +289,14 @@ func main() {
 					wg2.Done()
 				}()
 				for res := range resultChan {
-
 					downloadSpeed := getDownloadSpeed(res.ip)
 					results = append(results, speedtestresult{result: res, downloadSpeed: downloadSpeed})
 
 					count++
 					percentage := float64(count) / float64(total) * 100
-					fmt.Printf("已完成: %.2f%%\r", percentage)
+					fmt.Printf("Completed: %.2f%%\r", percentage)
 					if count == total {
-						fmt.Printf("已完成: %.2f%%\033[0\n", percentage)
+						fmt.Printf("Completed: %.2f%%\033[0\n", percentage)
 					}
 				}
 			}()
@@ -319,16 +320,16 @@ func main() {
 
 	file, err := os.Create(*outFile)
 	if err != nil {
-		fmt.Printf("无法创建文件: %v\n", err)
+		fmt.Printf("Unable to create file: %v\n", err)
 		return
 	}
 	defer file.Close()
 
 	writer := csv.NewWriter(file)
 	if *speedTest > 0 {
-		writer.Write([]string{"IP地址", "端口", "TLS", "数据中心", "地区", "城市", "网络延迟", "下载速度"})
+		writer.Write([]string{"IP Address", "Port", "TLS", "Data Center", "Region", "City", "Latency", "Download Speed"})
 	} else {
-		writer.Write([]string{"IP地址", "端口", "TLS", "数据中心", "地区", "城市", "网络延迟"})
+		writer.Write([]string{"IP Address", "Port", "TLS", "Data Center", "Region", "City", "Latency"})
 	}
 	for _, res := range results {
 		if *speedTest > 0 {
@@ -339,27 +340,27 @@ func main() {
 	}
 
 	writer.Flush()
-	// 清除输出内容
+	// Clear output
 	fmt.Print("\033[2J")
-	fmt.Printf("成功将结果写入文件 %s，耗时 %d秒\n", *outFile, time.Since(startTime)/time.Second)
+	fmt.Printf("Results written to file %s successfully, took %d seconds\n", *outFile, time.Since(startTime)/time.Second)
 }
 
-// 从文件中读取IP地址
-func readIPs(File string) ([]string, error) {
-	file, err := os.Open(File)
+// Read IP addresses from file
+func readIPs(file string) ([]string, error) {
+	fileContent, err := os.Open(file)
 	if err != nil {
 		return nil, err
 	}
-	defer file.Close()
+	defer fileContent.Close()
 	var ips []string
-	scanner := bufio.NewScanner(file)
+	scanner := bufio.NewScanner(fileContent)
 	for scanner.Scan() {
 		ipAddr := scanner.Text()
-		// 判断是否为 CIDR 格式的 IP 地址
+		// Check if it is in CIDR format
 		if strings.Contains(ipAddr, "/") {
 			ip, ipNet, err := net.ParseCIDR(ipAddr)
 			if err != nil {
-				fmt.Printf("无法解析CIDR格式的IP: %v\n", err)
+				fmt.Printf("Unable to parse CIDR format IP: %v\n", err)
 				continue
 			}
 			for ip := ip.Mask(ipNet.Mask); ipNet.Contains(ip); inc(ip) {
@@ -372,7 +373,7 @@ func readIPs(File string) ([]string, error) {
 	return ips, scanner.Err()
 }
 
-// inc函数实现ip地址自增
+// Function to increment IP address
 func inc(ip net.IP) {
 	for j := len(ip) - 1; j >= 0; j-- {
 		ip[j]++
@@ -382,7 +383,7 @@ func inc(ip net.IP) {
 	}
 }
 
-// 测速函数
+// Speed test function
 func getDownloadSpeed(ip string) float64 {
 	var protocol string
 	if *enableTLS {
@@ -391,11 +392,11 @@ func getDownloadSpeed(ip string) float64 {
 		protocol = "http://"
 	}
 	speedTestURL := protocol + *speedTestURL
-	// 创建请求
+	// Create request
 	req, _ := http.NewRequest("GET", speedTestURL, nil)
 	req.Header.Set("User-Agent", "Mozilla/5.0")
 
-	// 创建TCP连接
+	// Create TCP connection
 	dialer := &net.Dialer{
 		Timeout:   timeout,
 		KeepAlive: 0,
@@ -406,33 +407,33 @@ func getDownloadSpeed(ip string) float64 {
 	}
 	defer conn.Close()
 
-	fmt.Printf("正在测试IP %s 端口 %s\n", ip, strconv.Itoa(*defaultPort))
+	fmt.Printf("Testing IP %s Port %s\n", ip, strconv.Itoa(*defaultPort))
 	startTime := time.Now()
-	// 创建HTTP客户端
+	// Create HTTP client
 	client := http.Client{
 		Transport: &http.Transport{
 			Dial: func(network, addr string) (net.Conn, error) {
 				return conn, nil
 			},
 		},
-		//设置单个IP测速最长时间为5秒
+		// Set maximum time for a single IP speed test to 5 seconds
 		Timeout: 5 * time.Second,
 	}
-	// 发送请求
+	// Send request
 	req.Close = true
 	resp, err := client.Do(req)
 	if err != nil {
-		fmt.Printf("IP %s 端口 %s 测速无效\n", ip, strconv.Itoa(*defaultPort))
+		fmt.Printf("Invalid speed test for IP %s Port %s\n", ip, strconv.Itoa(*defaultPort))
 		return 0
 	}
 	defer resp.Body.Close()
 
-	// 复制响应体到/dev/null，并计算下载速度
+	// Copy response body to /dev/null and calculate download speed
 	written, _ := io.Copy(io.Discard, resp.Body)
 	duration := time.Since(startTime)
 	speed := float64(written) / duration.Seconds() / 1024
 
-	// 输出结果
-	fmt.Printf("IP %s 端口 %s 下载速度 %.0f kB/s\n", ip, strconv.Itoa(*defaultPort), speed)
+	// Output result
+	fmt.Printf("IP %s Port %s Download Speed %.0f kB/s\n", ip, strconv.Itoa(*defaultPort), speed)
 	return speed
 }
