@@ -1,47 +1,47 @@
-# 简介
-Cloudflare IP 测速器是一个使用 Golang 编写的小工具，用于测试一些 Cloudflare 的 IP 地址的延迟和下载速度，并将结果输出到 CSV 文件中。
+# Introduction
+Cloudflare IP Speed Tester is a small tool written in Golang that tests the latency and download speed of some Cloudflare IP addresses and outputs the results to a CSV file.
 
-# 安装
-首先安装 Golang 和 Git，然后在终端中运行以下命令：
+# Install
+First install Golang and Git, then run the following commands in the terminal:
 
 ```
 git clone https://github.com/badafans/Cloudflare-IP-SpeedTest.git
 cd Cloudflare-IP-SpeedTest
 go build -o ipspeedtest main.go
 ```
-这将编译可执行文件 ipspeedtest。
+This will compile the executable ipspeedtest.
 
-# 参数说明
-ipspeedtest 可以接受以下参数：
+# Parameter Description
+ipspeedtest can accept the following parameters:
 
-- file: IP地址文件名称 (default "ip.txt")
-- max: 并发请求最大协程数 (default 100)
-- outfile: 输出文件名称 (default "ip.csv")
-- port:	端口 (default 443)
-- speedtest: 下载测速协程数量,设为0禁用测速 (default 5)
-- tls: 是否启用TLS (default true)
-- url: 测速文件地址 (default "speed.cloudflare.com/__down?bytes=500000000")
+- file: IP address file name (default "ip.txt")
+- max: maximum number of coroutines for concurrent requests (default 100)
+- outfile: output file name (default "ip.csv")
+- port: port (default 443)
+- speedtest: The number of downloaded speed test coroutines, set to 0 to disable speed test (default 5)
+- tls: whether to enable TLS (default true)
+- url: Speed test file address (default "speed.cloudflare.com/__down?bytes=500000000")
 
-# 运行
-在终端中运行以下命令来启动程序：
+# run
+Run the following command in the terminal to start the program:
 
 ```
 ./ipspeedtest -file=ip.txt -outfile=ip.csv -port=443 -max=100 -speedtest=1 -tls=true -url=speed.cloudflare.com/__down?bytes=500000000
 ```
-请替换参数值以符合您的实际需求。
+Please replace parameter values to match your actual needs.
 
-# 输出说明
-程序将输出每个成功测试的 IP 地址的信息，包括 IP 地址、端口、数据中心、地区、城市、网络延迟和下载速度（如果选择测速）。
+# Output description
+The program will output information for each successfully tested IP address, including IP address, port, data center, region, city, network latency and download speed (if speed test is selected).
 
-程序还会将所有结果写入一个 CSV 文件中。
+The program also writes all results to a CSV file.
 
-# 许可证
+# license
 The MIT License (MIT)
 
-此处，"软件" 指 Cloudflare IP 测速器。
+Here, "Software" refers to Cloudflare IP Speed Tester.
 
-特此授予非限制性许可证，允许任何人获得本软件副本并自由使用、复制、修改、合并、出版发行、散布、再许可和/或销售本软件的副本，以及将本软件与其它软件捆绑在一起使用。
+A non-restrictive license is hereby granted, permitting anyone to obtain a copy of the Software and to freely use, copy, modify, merge, publish, distribute, sublicense and/or sell copies of the Software and to bundle the Software with other software. use together.
 
-上述版权声明和本许可声明应包含在本软件的所有副本或主要部分中。
+The above copyright notice and this license notice shall be included in all copies or substantial portions of the Software.
 
-本软件按 "原样" 提供，没有任何形式的明示或暗示保证，包括但不限于适销性保证、特定用途适用性保证和非侵权保证。在任何情况下，作者或版权所有者均不对任何索赔、损害或其他责任负责，无论是在合同、侵权或其他方面，由于或与软件或使用或其他交易中的软件产生或与之相关的操作。
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EITHER EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE .
