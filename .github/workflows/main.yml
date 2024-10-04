@@ -1,0 +1,31 @@
+name: Go Build and Run
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v2
+
+      - name: Set up Go
+        uses: actions/setup-go@v2
+        with:
+          go-version: '1.20'
+
+      - name: Build application
+        run: go build -o asn asn.go
+
+      - name: Run application
+        run: ./asn -asn "AS396982" -port 443 -max 50 -tls true
+
+      - name: Commit changes
+        run: |
+          git config --local user.name "github-actions"
+          git config --local user.email "github-actions@github.com"
+          git add .
+          git commit -m "Automated commit by GitHub Actions" || echo "No changes to commit"
+          git push
