@@ -28,7 +28,7 @@ const (
 )
 
 var (
-	asnList     = flag.String("asn", "", "ASN numbers separated by commas")
+	asnList     = flag.String("asn", "", "Comma-separated ASN numbers")
 	defaultPort = flag.Int("port", 443, "Port")
 	maxThreads  = flag.Int("max", 50, "Maximum number of parallel requests")
 	enableTLS   = flag.Bool("tls", true, "Enable TLS")
@@ -81,13 +81,13 @@ func main() {
 
 		asnInfo, err := getASNInfo(asn)
 		if err != nil {
-			fmt.Printf("Failed to get ASN information for %s: %v\n", asn, err)
+			fmt.Printf("Failed to retrieve information for ASN %s: %v\n", asn, err)
 			continue
 		}
 
 		outFile := asnInfo.Name + ".csv"
 
-		fmt.Printf("ASN Information: %s\n", asn)
+		fmt.Printf("ASN information: %s\n", asn)
 		fmt.Printf("  Name: %s\n", asnInfo.Name)
 		fmt.Printf("  Country: %s\n", asnInfo.CountryCode)
 
@@ -123,12 +123,12 @@ func getASNInfo(asn string) (ASNInfo, error) {
 	url := fmt.Sprintf("https://api.bgpview.io/asn/%s", asn)
 	resp, err := http.Get(url)
 	if err != nil {
-		return ASNInfo{}, fmt.Errorf("failed to get ASN information: %v", err)
+		return ASNInfo{}, fmt.Errorf("failed to retrieve ASN information: %v", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return ASNInfo{}, fmt.Errorf("failed to get ASN information: received status code %d", resp.StatusCode)
+		return ASNInfo{}, fmt.Errorf("failed to retrieve ASN information: received status code %d", resp.StatusCode)
 	}
 
 	var response struct {
@@ -148,7 +148,7 @@ func loadLocations() ([]location, error) {
 		fmt.Println("Local file locations.json not found, downloading...")
 		resp, err := http.Get("https://speed.cloudflare.com/locations")
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch JSON from URL: %v", err)
+			return nil, fmt.Errorf("failed to get JSON from URL: %v", err)
 		}
 		defer resp.Body.Close()
 
@@ -191,7 +191,7 @@ func createLocationMap(locations []location) map[string]location {
 
 func prepareOutputFile(outFile string) error {
 	if err := os.Remove(outFile); err != nil && !os.IsNotExist(err) {
-		return fmt.Errorf("failed to delete existing file: %v", err)
+		return fmt.Errorf("failed to remove existing file: %v", err)
 	}
 	return nil
 }
@@ -220,7 +220,7 @@ func processIPsFromASN(asn string, locationMap map[string]location, batchSize in
 	for _, cidrBlock := range cidrBlocks {
 		ips, err := generateIPs(cidrBlock)
 		if err != nil {
-			fmt.Printf("Failed to generate IP for CIDR %s: %v\n", cidrBlock, err)
+			fmt.Printf("Failed to generate IPs for CIDR %s: %v\n", cidrBlock, err)
 			continue
 		}
 
@@ -251,7 +251,7 @@ func fetchCIDRBlocksFromASN(asn string) ([]string, error) {
 	for attempts := 0; attempts < 5; attempts++ {
 		resp, err := http.Get(url)
 		if err != nil {
-			return nil, fmt.Errorf("failed to fetch CIDR blocks: %v", err)
+			return nil, fmt.Errorf("failed to retrieve CIDR blocks: %v", err)
 		}
 		defer resp.Body.Close()
 
@@ -279,51 +279,52 @@ func fetchCIDRBlocksFromASN(asn string) ([]string, error) {
 					retryAfter = time.Duration(retryAfterSeconds) * time.Second
 				}
 			}
-			fmt.Printf("Rate limit exceeded, retrying in %v...\n", retryAfter)
+			fmt.Printf("Request limit exceeded, retrying after %v...\n", retryAfter)
 			time.Sleep(retryAfter)
 			continue
 		}
 
-		return nil, fmt.Errorf("failed to fetch CIDR blocks: received status code %d", resp.StatusCode)
+		return nil, fmt.Errorf("failed to retrieve CIDR blocks: received status code %d", resp.StatusCode)
 	}
-	return nil, fmt.Errorf("failed to fetch CIDR blocks after multiple attempts")
+	return nil, fmt.Errorf("maximum number of attempts to retrieve CIDR blocks exceeded")
 }
 
 func calculateTotalIPs(cidrBlocks []string) (int, error) {
 	var totalIPs int
 	for _, cidr := range cidrBlocks {
-		ip, ipNet, err := net.ParseCIDR(cidr)
+		count, err := countIPsInCIDR(cidr)
 		if err != nil {
-			return 0, fmt.Errorf("failed to parse CIDR %s: %v", cidr, err)
+			fmt.Printf("Failed to count IPs in CIDR %s: %v\n", cidr, err)
+			continue
 		}
-		ones, bits := ipNet.Mask.Size()
-		ipCount := 1 << (bits - ones)
-		totalIPs += ipCount
-		fmt.Printf("CIDR: %s has %d IPs\n", ip.String(), ipCount)
+		totalIPs += count
 	}
 	return totalIPs, nil
 }
 
+func countIPsInCIDR(cidr string) (int, error) {
+	_, ipNet, err := net.ParseCIDR(cidr)
+	if err != nil {
+		return 0, fmt.Errorf("failed to parse CIDR: %v", err)
+	}
+	ones, bits := ipNet.Mask.Size()
+	return 1 << (bits - ones), nil
+}
+
 func generateIPs(cidr string) ([]string, error) {
+	var ips []string
 	ip, ipNet, err := net.ParseCIDR(cidr)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse CIDR %s: %v", cidr, err)
+		return nil, fmt.Errorf("failed to parse CIDR: %v", err)
 	}
 
-	var ips []string
-	for ip := ip.Mask(ipNet.Mask); ipNet.Contains(ip); incrementIP(ip) {
+	for ip := ip.Mask(ipNet.Mask); ipNet.Contains(ip); inc(ip) {
 		ips = append(ips, ip.String())
 	}
-
-	// Remove network and broadcast addresses
-	if len(ips) > 2 {
-		ips = ips[1 : len(ips)-1]
-	}
-
 	return ips, nil
 }
 
-func incrementIP(ip net.IP) {
+func inc(ip net.IP) {
 	for j := len(ip) - 1; j >= 0; j-- {
 		ip[j]++
 		if ip[j] > 0 {
@@ -333,85 +334,176 @@ func incrementIP(ip net.IP) {
 }
 
 func processIPs(ips []string, locationMap map[string]location, totalIPs int, processedIPs *int, lock *sync.Mutex) []result {
-	var results []result
 	var wg sync.WaitGroup
-	sem := make(chan struct{}, *maxThreads)
+	resultChan := make(chan result, len(ips))
+	thread := make(chan struct{}, *maxThreads)
 
 	for _, ip := range ips {
+		thread <- struct{}{}
 		wg.Add(1)
 		go func(ip string) {
-			defer wg.Done()
+			defer func() {
+				<-thread
+				wg.Done()
+				updateProgress(processedIPs, totalIPs, lock)
+			}()
 
-			sem <- struct{}{}
-			defer func() { <-sem }()
-
-			dataCenter, region, city := fetchIPInfo(ip, locationMap)
-			if dataCenter == "" {
-				return
+			if res, err := processIP(ip, locationMap); err == nil {
+				resultChan <- res
 			}
-
-			tcpDuration, latency := measureLatency(ip)
-
-			lock.Lock()
-			*processedIPs++
-			fmt.Printf("Processing IP %d/%d: %s (%s, %s, %s)\n", *processedIPs, totalIPs, ip, dataCenter, region, city)
-			lock.Unlock()
-
-			results = append(results, result{
-				ip:          ip,
-				port:        *defaultPort,
-				dataCenter:  dataCenter,
-				region:      region,
-				city:        city,
-				latency:     latency,
-				tcpDuration: tcpDuration,
-			})
 		}(ip)
 	}
-	wg.Wait()
 
+	wg.Wait()
+	close(resultChan)
+
+	results := make([]result, 0, len(resultChan))
+	for res := range resultChan {
+		results = append(results, res)
+	}
+
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].tcpDuration < results[j].tcpDuration
+	})
 	return results
 }
 
-func fetchIPInfo(ip string, locationMap map[string]location) (string, string, string) {
-	// Implement function to fetch IP info using the location map
-	// Placeholder return for now
-	return "ExampleDataCenter", "ExampleRegion", "ExampleCity"
+func processIP(ip string, locationMap map[string]location) (result, error) {
+	dialer := &net.Dialer{
+		Timeout: timeout,
+	}
+	start := time.Now()
+	conn, err := dialer.Dial("tcp", net.JoinHostPort(ip, strconv.Itoa(*defaultPort)))
+	if err != nil {
+		return result{}, err
+	}
+	defer conn.Close()
+
+	tcpDuration := time.Since(start)
+	start = time.Now()
+
+	client := http.Client{
+		Transport: &http.Transport{
+			Dial: func(network, addr string) (net.Conn, error) {
+				return conn, nil
+			},
+		},
+		Timeout: timeout,
+	}
+
+	protocol := "http://"
+	if *enableTLS {
+		protocol = "https://"
+	}
+	reqURL := protocol + requestURL
+
+	req, _ := http.NewRequest("GET", reqURL, nil)
+	req.Header.Set("User-Agent", "Mozilla/5.0")
+	req.Close = true
+	resp, err := client.Do(req)
+	if err != nil {
+		return result{}, err
+	}
+	defer resp.Body.Close()
+
+	duration := time.Since(start)
+	if duration > maxDuration {
+		return result{}, fmt.Errorf("the request took too long")
+	}
+
+	buf := &bytes.Buffer{}
+	timeoutChan := time.After(maxDuration)
+	done := make(chan bool)
+	go func() {
+		_, err := io.Copy(buf, resp.Body)
+		done <- true
+		if err != nil {
+			return
+		}
+	}()
+	select {
+	case <-done:
+	case <-timeoutChan:
+		return result{}, fmt.Errorf("the request timed out")
+	}
+
+	body := buf
+	if err != nil {
+		return result{}, err
+	}
+
+	return parseResult(body, ip, tcpDuration, locationMap)
 }
 
-func measureLatency(ip string) (time.Duration, string) {
-	// Placeholder function for measuring latency
-	return 100 * time.Millisecond, "100 ms"
+func parseResult(body *bytes.Buffer, ip string, tcpDuration time.Duration, locationMap map[string]location) (result, error) {
+	if strings.Contains(body.String(), "uag=Mozilla/5.0") {
+		if matches := regexp.MustCompile(`colo=([A-Z]+)`).FindStringSubmatch(body.String()); len(matches) > 1 {
+			dataCenter := matches[1]
+			loc, ok := locationMap[dataCenter]
+			if ok {
+				fmt.Printf("Valid IP %s, location %s, latency %d ms\n", ip, loc.City, tcpDuration.Milliseconds())
+				return result{ip, *defaultPort, dataCenter, loc.Region, loc.City, fmt.Sprintf("%d ms", tcpDuration.Milliseconds()), tcpDuration}, nil
+			}
+			fmt.Printf("Valid IP %s, unknown location, latency %d ms\n", ip, tcpDuration.Milliseconds())
+			return result{ip, *defaultPort, dataCenter, "", "", fmt.Sprintf("%d ms", tcpDuration.Milliseconds()), tcpDuration}, nil
+		}
+	}
+	return result{}, fmt.Errorf("failed to parse the result")
+}
+
+func updateProgress(processedIPs *int, totalIPs int, lock *sync.Mutex) {
+	lock.Lock()
+	defer lock.Unlock()
+	*processedIPs++
+	percentage := float64(*processedIPs) / float64(totalIPs) * 100
+	fmt.Printf("Completed: %d out of %d IP addresses (%.2f%%)\r", *processedIPs, totalIPs, percentage)
+	if *processedIPs == totalIPs {
+		fmt.Printf("Completed: %d out of %d IP addresses (%.2f%%)\n", *processedIPs, totalIPs, percentage)
+	}
+}
+
+func sortResultsByDuration(results []result) {
+	sort.Slice(results, func(i, j int) bool {
+		return results[i].tcpDuration < results[j].tcpDuration
+	})
+}
+
+func isFileEmpty(filename string) (bool, error) {
+	info, err := os.Stat(filename)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return true, nil
+		}
+		return false, err
+	}
+	return info.Size() == 0, nil
 }
 
 func writeResults(results []result, outFile string, appendToFile bool) error {
-	file, err := os.OpenFile(outFile, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if len(results) == 0 {
+		return nil
+	}
+
+	file, err := os.OpenFile(outFile, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
 	if err != nil {
-		return fmt.Errorf("failed to open file %s: %v", outFile, err)
+		return fmt.Errorf("failed to create file: %v", err)
 	}
 	defer file.Close()
 
 	writer := csv.NewWriter(file)
 	defer writer.Flush()
 
-	if !appendToFile {
-		writer.Write([]string{"IP", "Port", "DataCenter", "Region", "City", "Latency", "TCP Duration"})
+	if fileInfo, err := file.Stat(); err == nil && fileInfo.Size() == 0 {
+		writer.Write([]string{"IP Address", "Port", "TLS", "Data Center", "Region", "City", "Latency"})
 	}
 
 	for _, res := range results {
-		writer.Write([]string{
-			res.ip,
-			strconv.Itoa(res.port),
-			res.dataCenter,
-			res.region,
-			res.city,
-			res.latency,
-			fmt.Sprintf("%v", res.tcpDuration),
-		})
+		writer.Write([]string{res.ip, strconv.Itoa(res.port), strconv.FormatBool(*enableTLS), res.dataCenter, res.region, res.city, res.latency})
 	}
 
 	return nil
 }
+
 func formatDuration(d time.Duration) string {
 	h := d / time.Hour
 	m := (d % time.Hour) / time.Minute
@@ -436,6 +528,6 @@ func clearConsole() {
 	default:
 		cmd = exec.Command("clear")
 	}
-	cmd.Stdout= os.Stdout
+	cmd.Stdout = os.Stdout
 	cmd.Run()
 }
